@@ -91,7 +91,7 @@ func (c *CLI) uploadFile() error {
 
 	// Print results
 	fmt.Printf("📤 Uploaded: %s\n", c.File)
-	fmt.Printf("🔗 Download: curl %s%s\n", c.Server, result["download"])
+	fmt.Printf("🔗 Download: curl -J -O %s%s\n", c.Server, result["download"])
 	fmt.Printf("👀 View: %s%s\n", c.Server, result["view"])
 
 	return nil
@@ -146,7 +146,7 @@ func (c *CLI) createPasteWithEditor() error {
 func main() {
 	var cli CLI
 	ctx := kong.Parse(&cli,
-		kong.Name("share"),
+		kong.Name("quip"),
 		kong.Description("Simple file sharing and pastebin"),
 		kong.UsageOnError(),
 	)

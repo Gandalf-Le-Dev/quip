@@ -62,7 +62,7 @@ func (h *Handlers) UploadFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Return response
-	response := map[string]interface{}{
+	response := map[string]any{
 		"id":       uploadedFile.ID,
 		"filename": uploadedFile.OriginalName,
 		"size":     uploadedFile.Size,
@@ -143,7 +143,7 @@ func (h *Handlers) CreatePaste(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Return response
-	response := map[string]interface{}{
+	response := map[string]any{
 		"id":       paste.ID,
 		"language": paste.Language,
 		"raw":      fmt.Sprintf("/paste/%s/raw", paste.ID),
