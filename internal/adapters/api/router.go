@@ -1,4 +1,4 @@
-package web
+package api
 
 import (
 	"net/http"
@@ -7,23 +7,30 @@ import (
 func NewRouter(handlers *Handlers) http.Handler {
 	mux := http.NewServeMux()
 
+	
 	// File routes
-	mux.HandleFunc("POST /upload", handlers.UploadFile)
-	mux.HandleFunc("GET /files/{id}", handlers.DownloadFile)
-
+	fileHandler := handlers.fileHandler
+	mux.HandleFunc("POST /api/file", fileHandler.UploadFile)
+	mux.HandleFunc("GET /api/file/{id}", fileHandler.DownloadFile)
+	mux.HandleFunc("GET /api/file/{id}/info", fileHandler.GetFileInfo)
+	mux.HandleFunc("DELETE /api/file/{id}", fileHandler.DeleteFile)
+	
 	// Paste routes
-	mux.HandleFunc("POST /paste", handlers.CreatePaste)
-	mux.HandleFunc("GET /paste/{id}", handlers.GetPaste)
-	mux.HandleFunc("GET /paste/{id}/raw", handlers.GetRawPaste)
+	pasteHandler := handlers.pasteHandler
+	mux.HandleFunc("POST /api/paste", pasteHandler.CreatePaste)
+	mux.HandleFunc("GET /api/paste/{id}", pasteHandler.GetPaste)
+	mux.HandleFunc("GET /api/paste/{id}/raw", pasteHandler.GetRawPaste)
+	mux.HandleFunc("DELETE /api/paste/{id}", pasteHandler.DeletePaste)
 
 	// Universal viewer
-	mux.HandleFunc("GET /view/{id}", handlers.ViewContent)
-	mux.HandleFunc("GET /{id}", handlers.ViewContent)
+	viewerHandler := handlers.viewHandler
+	mux.HandleFunc("GET /api/{id}", viewerHandler.GetContent)
+	mux.HandleFunc("GET /api/view/{id}", viewerHandler.ViewContent)
 
 	// Health check
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		_, err := w.Write([]byte("OK"))
+		_, err := w.Write([]byte("OK\n"))
         if err != nil {
             http.Error(w, err.Error(), http.StatusInternalServerError)
         }

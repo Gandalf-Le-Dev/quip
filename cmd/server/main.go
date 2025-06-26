@@ -10,7 +10,7 @@ import (
 
 	"github.com/Gandalf-Le-Dev/quip/internal/adapters/repository/postgres"
 	"github.com/Gandalf-Le-Dev/quip/internal/adapters/repository/storage/minio"
-	"github.com/Gandalf-Le-Dev/quip/internal/adapters/web"
+	"github.com/Gandalf-Le-Dev/quip/internal/adapters/api"
 	"github.com/Gandalf-Le-Dev/quip/internal/core/services"
 	_ "github.com/lib/pq"
 )
@@ -83,8 +83,8 @@ func main() {
 	}()
 
 	// Initialize HTTP handlers
-	handlers := web.NewHandlers(fileService, pasteService)
-	router := web.NewRouter(handlers)
+	handlers := api.NewHandlers(fileService, pasteService)
+	router := api.NewRouter(handlers)
 
 	// Start server
 	log.Println("Server starting on :8080")
