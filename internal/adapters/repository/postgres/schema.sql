@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS files (
-    id VARCHAR(10) PRIMARY KEY,
+    id VARCHAR(11) PRIMARY KEY,
     original_name VARCHAR(255) NOT NULL,
     size BIGINT NOT NULL,
     content_type VARCHAR(100) NOT NULL,
@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS files (
 );
 
 CREATE TABLE IF NOT EXISTS pastes (
-    id VARCHAR(10) PRIMARY KEY,
+    id VARCHAR(11) PRIMARY KEY,
     content TEXT NOT NULL,
     language VARCHAR(50) NOT NULL,
     title VARCHAR(255),
