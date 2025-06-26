@@ -19,6 +19,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { PasteService } from '../adapters/api/pasteService';
+import type { Paste, TTL } from '../core/types';
 
 const languages = [
   { value: 'text', label: 'Plain Text', icon: FileText },
@@ -34,34 +36,34 @@ const languages = [
   { value: 'markdown', label: 'Markdown', icon: Hash },
 ];
 
+const pasteService = new PasteService(import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080');
+
 export function PasteEditor() {
   const [content, setContent] = useState('');
   const [language, setLanguage] = useState('text');
   const [title, setTitle] = useState('');
-  const [ttl, setTtl] = useState('24h');
+  const [ttl, setTtl] = useState<TTL>('24h');
   const [activeTab, setActiveTab] = useState('edit');
-  const [result, setResult] = useState<{raw: string, view: string, title: string, language: string, id: string} | null>(null);
+  const [result, setResult] = useState<Paste | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async () => {
     if (!content.trim()) return;
     
     setSubmitting(true);
-    
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    // Mock successful response
-    setResult({
-      raw: `/r/xyz789abc123`,
-      view: `/p/xyz789abc123`,
-      title: title || 'Untitled',
-      language: language,
-      id: 'xyz789abc123'
-    });
-    
-    setSubmitting(false);
+    setError(null);
+    setResult(null);
+
+    try {
+      const createdPaste = await pasteService.create(content, language, title, ttl);
+      setResult(createdPaste);
+    } catch (err: any) {
+      setError(err.message || 'An unknown error occurred during paste creation.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const copyToClipboard = async (url: string, type: string) => {
@@ -147,7 +149,7 @@ export function PasteEditor() {
             <Clock className="w-4 h-4" />
             Expiration
           </Label>
-          <Select value={ttl} onValueChange={setTtl}>
+          <Select value={ttl} onValueChange={(value) => setTtl(value as TTL)}>
             <SelectTrigger className="w-full">
               <SelectValue placeholder="Select expiration" />
             </SelectTrigger>
@@ -225,6 +227,17 @@ export function PasteEditor() {
         )}
       </Button>
 
+      {error && (
+        <Alert className="border-red-200 bg-red-50">
+          <AlertDescription>
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold text-red-800">Error:</h3>
+              <p className="text-red-700">{error}</p>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Success Result */}
       {result && (
         <Alert className="border-green-200 bg-green-50">
@@ -240,17 +253,17 @@ export function PasteEditor() {
                 <div className="text-sm space-y-1">
                   <div className="flex justify-between">
                     <span className="font-medium">Title:</span>
-                    <span className="text-slate-600">{result.title}</span>
+                    <span className="text-slate-600">{result.Title || 'Untitled'}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="font-medium">Language:</span>
                     <span className="text-slate-600">
-                      {languages.find(l => l.value === result.language)?.label}
+                      {languages.find(l => l.value === result.Language)?.label}
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="font-medium">ID:</span>
-                    <code className="text-slate-600 font-mono text-xs">{result.id}</code>
+                    <code className="text-slate-600 font-mono text-xs">{result.ID}</code>
                   </div>
                 </div>
               </div>
@@ -322,14 +335,18 @@ export function PasteEditor() {
 
                 {/* Action Buttons */}
                 <div className="flex gap-2 pt-2">
-                  <Button size="sm" className="flex-1">
-                    <Eye className="w-4 h-4 mr-2" />
-                    View Paste
-                  </Button>
-                  <Button size="sm" variant="outline" className="flex-1">
-                    <FileText className="w-4 h-4 mr-2" />
-                    Raw Content
-                  </Button>
+                  <a href={result.view} target="_blank" rel="noopener noreferrer" className="flex-1">
+                    <Button size="sm" className="w-full">
+                      <Eye className="w-4 h-4 mr-2" />
+                      View Paste
+                    </Button>
+                  </a>
+                  <a href={result.raw} target="_blank" rel="noopener noreferrer" className="flex-1">
+                    <Button size="sm" variant="outline" className="w-full">
+                      <FileText className="w-4 h-4 mr-2" />
+                      Raw Content
+                    </Button>
+                  </a>
                 </div>
               </div>
             </div>

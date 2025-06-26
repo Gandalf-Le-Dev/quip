@@ -4,14 +4,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FileUploader } from './components/FileUploader';
 import { PasteEditor } from './components/PasteEditor';
-// import { ContentViewer } from './components/ContentViewer';
+import { ContentViewer } from './components/ContentViewer';
 
 function App() {
   return (
     <Router>
       <Routes>
-        {/* <Route path="/view/:id" element={<ContentViewer />} />
-        <Route path="/:id" element={<ContentViewer />} /> */}
+        <Route path="/view/:id" element={<ContentViewer />} />
+        <Route path="/:id" element={<ContentViewer />} />
         <Route path="/" element={
           <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
             <div className="container mx-auto px-4 py-12">

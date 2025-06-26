@@ -5,35 +5,36 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { FileService } from '../adapters/api/fileService';
+import type { File, TTL } from '../core/types';
+
+const fileService = new FileService(import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080');
 
 export function FileUploader() {
   const [uploading, setUploading] = useState(false);
-  const [result, setResult] = useState<{ filename: string; size: number, type: string, download: string, view: string } | null>(null);
-  const [ttl, setTtl] = useState('24h');
+  const [result, setResult] = useState<File | null>(null);
+  const [ttl, setTtl] = useState<TTL>('24h');
   const [isDragActive, setIsDragActive] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  // Mock file upload function since we don't have axios
   const handleFileUpload = useCallback(async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     
-    const file = files[0];
+    const fileToUpload = files[0];
     setUploading(true);
-    
-    // Simulate upload delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // Mock successful response
-    setResult({
-      download: `/d/abc123def456`,
-      view: `/v/abc123def456`,
-      filename: file.name,
-      size: file.size,
-      type: file.type
-    });
-    
-    setUploading(false);
-  }, []);
+    setError(null);
+    setResult(null);
+
+    try {
+      const uploadedFile = await fileService.upload(fileToUpload, ttl);
+      setResult(uploadedFile);
+    } catch (err: any) {
+      setError(err.message || 'An unknown error occurred during upload.');
+    } finally {
+      setUploading(false);
+    }
+  }, [ttl]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -81,7 +82,7 @@ export function FileUploader() {
           <Clock className="w-4 h-4" />
           Expiration Time
         </Label>
-        <Select value={ttl} onValueChange={setTtl}>
+        <Select value={ttl} onValueChange={(value) => setTtl(value as TTL)}>
           <SelectTrigger className="w-full">
             <SelectValue placeholder="Select expiration time" />
           </SelectTrigger>
@@ -152,6 +153,17 @@ export function FileUploader() {
         </CardContent>
       </Card>
 
+      {error && (
+        <Alert className="border-red-200 bg-red-50">
+          <AlertDescription>
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold text-red-800">Error:</h3>
+              <p className="text-red-700">{error}</p>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Success Result */}
       {result && (
         <Alert className="border-green-200 bg-green-50">
@@ -167,15 +179,15 @@ export function FileUploader() {
                 <div className="text-sm space-y-1">
                   <div className="flex justify-between">
                     <span className="font-medium">Filename:</span>
-                    <span className="text-slate-600">{result.filename}</span>
+                    <span className="text-slate-600">{result.OriginalName}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="font-medium">Size:</span>
-                    <span className="text-slate-600">{formatFileSize(result.size)}</span>
+                    <span className="text-slate-600">{formatFileSize(result.Size)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="font-medium">Type:</span>
-                    <span className="text-slate-600">{result.type}</span>
+                    <span className="text-slate-600">{result.ContentType}</span>
                   </div>
                 </div>
               </div>
@@ -226,14 +238,18 @@ export function FileUploader() {
 
                 {/* Action Buttons */}
                 <div className="flex gap-2 pt-2">
-                  <Button size="sm" className="flex-1">
-                    <Download className="w-4 h-4 mr-2" />
-                    Download
-                  </Button>
-                  <Button size="sm" variant="outline" className="flex-1">
-                    <Eye className="w-4 h-4 mr-2" />
-                    View File
-                  </Button>
+                  <a href={result.download} target="_blank" rel="noopener noreferrer" className="flex-1">
+                    <Button size="sm" className="w-full">
+                      <Download className="w-4 h-4 mr-2" />
+                      Download
+                    </Button>
+                  </a>
+                  <a href={result.view} target="_blank" rel="noopener noreferrer" className="flex-1">
+                    <Button size="sm" variant="outline" className="w-full">
+                      <Eye className="w-4 h-4 mr-2" />
+                      View File
+                    </Button>
+                  </a>
                 </div>
               </div>
             </div>

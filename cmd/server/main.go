@@ -3,41 +3,50 @@ package main
 import (
 	"context"
 	"database/sql"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"time"
 
+	"github.com/Gandalf-Le-Dev/quip/internal/adapters/api"
 	"github.com/Gandalf-Le-Dev/quip/internal/adapters/repository/postgres"
 	"github.com/Gandalf-Le-Dev/quip/internal/adapters/repository/storage/minio"
-	"github.com/Gandalf-Le-Dev/quip/internal/adapters/api"
 	"github.com/Gandalf-Le-Dev/quip/internal/core/services"
+	"github.com/Gandalf-Le-Dev/quip/internal/pkg/logger"
 	_ "github.com/lib/pq"
 )
 
 func main() {
+	// Initialize logger
+	log := logger.NewDevelopmentLogger()
+
 	// Load configuration
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
-		dbURL = "postgres://localhost/fileshare?sslmode=disable"
+		dbURL = "postgres://fileshare:secretpassword@localhost:5432/fileshare?sslmode=disable"
 	}
 
 	// Connect to database
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
-		log.Fatal("Failed to connect to database:", err)
+		log.Error("Failed to connect to database", "error", err)
+		os.Exit(1)
 	}
 	defer db.Close()
 
 	err = db.Ping()
 	if err != nil {
-		log.Fatal("Failed to ping the database:", err)
+		log.Error("Failed to ping the database", "error", err)
+		os.Exit(1)
 	}
+	log.Info("Successfully connected to the database")
 
 	// Run migrations
 	if err := runMigrations(db); err != nil {
-		log.Fatal("Failed to run migrations:", err)
+		log.Error("Failed to run migrations", "error", err)
+		os.Exit(1)
 	}
+	log.Info("Database migrations completed successfully")
 
 	// Initialize repositories
 	fileRepo := postgres.NewRepository(db)
@@ -49,50 +58,71 @@ func main() {
 		minioEndpoint = "localhost:9000"
 	}
 
-	storage, err := minio.NewMinioStorage(
-		minioEndpoint,
-		os.Getenv("MINIO_ACCESS_KEY"),
-		os.Getenv("MINIO_SECRET_KEY"),
-		os.Getenv("MINIO_BUCKET"),
-		os.Getenv("MINIO_USE_SSL") == "true",
-	)
-	if err != nil {
-		log.Fatal("Failed to initialize storage:", err)
+	minioBucket := os.Getenv("MINIO_BUCKET")
+	if minioBucket == "" {
+		minioBucket = "uploads"
 	}
 
+	minioAccessKey := os.Getenv("MINIO_ACCESS_KEY")
+	if minioAccessKey == "" {
+		minioAccessKey = "minioadmin"
+	}
+	minioSecretKey := os.Getenv("MINIO_SECRET_KEY")
+	if minioSecretKey == "" {
+		minioSecretKey = "minioadmin"
+	}
+
+	storage, err := minio.NewMinioStorage(
+		minioEndpoint,
+		minioAccessKey,
+		minioSecretKey,
+		minioBucket,
+		os.Getenv("MINIO_USE_SSL") == "true",
+		log,
+	)
+	if err != nil {
+		log.Error("Failed to initialize storage", "error", err)
+		os.Exit(1)
+	}
+	log.Info("Object storage initialized successfully")
+
 	// Initialize services
-	fileService := services.NewFileService(fileRepo, storage)
-	pasteService := services.NewPasteService(pasteRepo)
+	fileService := services.NewFileService(fileRepo, storage, log)
+	pasteService := services.NewPasteService(pasteRepo, log)
 
 	// Start cleanup goroutine
-	go func() {
-		ticker := time.NewTicker(1 * time.Hour)
-		for range ticker.C {
-			ctx := context.Background()
-			err := fileService.CleanupExpired(ctx)
-			if err != nil {
-				log.Println("Error cleaning up expired files:", err)
-				continue
-			}
-			err = pasteService.CleanupExpired(ctx)
-			if err != nil {
-				log.Println("Error cleaning up expired pastes:", err)
-				continue
-			}
-		}
-	}()
+	go startCleanupTask(log, fileService, pasteService)
 
 	// Initialize HTTP handlers
-	handlers := api.NewHandlers(fileService, pasteService)
+	handlers := api.NewHandlers(fileService, pasteService, log)
 	router := api.NewRouter(handlers)
 
 	// Start server
-	log.Println("Server starting on :8080")
+	log.Info("Server starting", "address", ":8080")
 	if err := http.ListenAndServe(":8080", router); err != nil {
-		log.Fatal("Server failed:", err)
+		log.Error("Server failed to start", "error", err)
+		os.Exit(1)
 	}
 }
 
+func startCleanupTask(log *slog.Logger, fileService *services.FileService, pasteService *services.PasteService) {
+	ticker := time.NewTicker(1 * time.Hour)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		log.Info("Running cleanup task for expired content")
+		ctx := context.Background()
+
+		if err := fileService.CleanupExpired(ctx); err != nil {
+			log.Error("Error cleaning up expired files", "error", err)
+		}
+
+		if err := pasteService.CleanupExpired(ctx); err != nil {
+			log.Error("Error cleaning up expired pastes", "error", err)
+		}
+		log.Info("Cleanup task finished")
+	}
+}
 func runMigrations(db *sql.DB) error {
 	// In a real application, use a migration tool like golang-migrate
 	// For now, just execute the schema

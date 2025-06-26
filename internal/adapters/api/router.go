@@ -1,20 +1,21 @@
 package api
 
 import (
+	"log/slog"
 	"net/http"
+	"time"
 )
 
 func NewRouter(handlers *Handlers) http.Handler {
 	mux := http.NewServeMux()
 
-	
 	// File routes
 	fileHandler := handlers.fileHandler
 	mux.HandleFunc("POST /api/file", fileHandler.UploadFile)
 	mux.HandleFunc("GET /api/file/{id}", fileHandler.DownloadFile)
 	mux.HandleFunc("GET /api/file/{id}/info", fileHandler.GetFileInfo)
 	mux.HandleFunc("DELETE /api/file/{id}", fileHandler.DeleteFile)
-	
+
 	// Paste routes
 	pasteHandler := handlers.pasteHandler
 	mux.HandleFunc("POST /api/paste", pasteHandler.CreatePaste)
@@ -31,13 +32,14 @@ func NewRouter(handlers *Handlers) http.Handler {
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, err := w.Write([]byte("OK\n"))
-        if err != nil {
-            http.Error(w, err.Error(), http.StatusInternalServerError)
-        }
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 	})
 
-	// Apply CORS middleware
-	return corsMiddleware(mux)
+	// Apply middlewares
+	loggedMux := requestLogger(handlers.log, mux)
+	return corsMiddleware(loggedMux)
 }
 
 // Manual CORS implementation
@@ -54,5 +56,19 @@ func corsMiddleware(next http.Handler) http.Handler {
 		}
 
 		next.ServeHTTP(w, r)
+	})
+}
+
+// Request logging middleware
+func requestLogger(log *slog.Logger, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		next.ServeHTTP(w, r)
+		log.Info("HTTP request",
+			"method", r.Method,
+			"path", r.URL.Path,
+			"duration", time.Since(start),
+			"remote_addr", r.RemoteAddr,
+		)
 	})
 }

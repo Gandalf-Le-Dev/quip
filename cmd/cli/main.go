@@ -39,8 +39,7 @@ func (c *CLI) Run() error {
 	if c.File != "" {
 		// Check if file exists
 		if _, err := os.Stat(c.File); os.IsNotExist(err) {
-			// Treat as inline text
-			return c.createPasteFromText(c.File)
+			return fmt.Errorf("file not found: %s", c.File)
 		}
 		// Upload file
 		return c.uploadFile()
@@ -78,21 +77,27 @@ func (c *CLI) uploadFile() error {
 	w.Close()
 
 	// Make request
-	resp, err := http.Post(c.Server+"/upload", w.FormDataContentType(), &b)
+	resp, err := http.Post(c.Server+"/api/file", w.FormDataContentType(), &b)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 
-	var result map[string]any
+	var result struct {
+		ID       string `json:"id"`
+		Filename string `json:"filename"`
+		Size     int64  `json:"size"`
+		Download string `json:"download"`
+		View     string `json:"view"`
+	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return err
 	}
 
 	// Print results
-	fmt.Printf("📤 Uploaded: %s\n", c.File)
-	fmt.Printf("🔗 Download: curl -J -O %s%s\n", c.Server, result["download"])
-	fmt.Printf("👀 View: %s%s\n", c.Server, result["view"])
+	fmt.Printf("📤 Uploaded: %s\n", result.Filename)
+	fmt.Printf("🔗 Download: curl -J -O %s/api/file/%s\n", c.Server, result.ID)
+	fmt.Printf("👀 View: %s%s\n", c.Server, result.View)
 
 	return nil
 }
@@ -118,21 +123,26 @@ func (c *CLI) createPaste(content string) error {
 	}
 
 	body, _ := json.Marshal(payload)
-	resp, err := http.Post(c.Server+"/paste", "application/json", bytes.NewReader(body))
+	resp, err := http.Post(c.Server+"/api/paste", "application/json", bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 
-	var result map[string]any
+	var result struct {
+		ID       string `json:"id"`
+		Language string `json:"language"`
+		Raw      string `json:"raw"`
+		View     string `json:"view"`
+	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return err
 	}
 
 	// Print results
 	fmt.Printf("📋 Created paste\n")
-	fmt.Printf("🔗 Raw: curl %s%s\n", c.Server, result["raw"])
-	fmt.Printf("👀 View: %s%s\n", c.Server, result["view"])
+	fmt.Printf("🔗 Raw: curl %s%s\n", c.Server, result.Raw)
+	fmt.Printf("👀 View: %s%s\n", c.Server, result.View)
 
 	return nil
 }
